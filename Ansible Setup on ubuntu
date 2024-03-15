@@ -1,0 +1,197 @@
+How to use Ansible on ubuntu 20.04 from begginer pov
+
+
+Photo by Gabriel Heinzer on Unsplash
+
+What Is Ansible
+Ansible is an open-source automation tool widely used for IT tasks such as
+
+. configuration management
+
+e.g- suppose I want to configure a new service on many systems at a time
+
+. application deployment
+
+e.g- suppose I want to run httpd Apache server and then run my simple application on top of it
+
+. task automation
+
+e.g- suppose I want to clear up my log files of application in servers
+
+It is designed to be
+
+. simple
+
+. agentless
+
+uses SSH for connection
+
+. powerful
+
+enabling users to automate repetitive tasks efficiently. Ansible operates by connecting to nodes (servers or devices) over SSH or WinRM (Windows Remote Management) and executing tasks using YAML-based playbooks.
+
+A Little about architecture
+Controller Node: The system where Ansible is installed and from where automation tasks are orchestrated. The controller node manages the inventory of target hosts and executes playbooks to configure and manage them.
+>>> Here our Ubuntu 20.04 System
+
+>>> control machine can be only a linux machine
+
+Inventory: The inventory file contains a list of managed nodes that Ansible will work with. It can be static or dynamic, and it can organize hosts into groups to simplify management and orchestration.
+Playbooks: Playbooks are written in YAML and define a set of tasks to be executed on managed nodes. They specify the state the system should be in, rather than the exact steps to get there, making them idempotent and easy to understand.
+Installation
+
+$ sudo apt update
+$ sudo apt install software-properties-common
+$ sudo add-apt-repository - yes - update ppa:ansible/ansible
+$ sudo apt install ansible
+Add the following lines
+
+Have to add utf encoding in /sudo nano /etc/default/locale
+
+LANG="en_US.UTF-8"
+LC_CTYPE="en.US.UTF-8"
+Then
+
+sudo update-locale LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8
+Ansible Version
+
+ansible - version
+for checking installation
+
+ansible localhost -m ping
+The output should look like
+
+localhost | SUCCESS => {
+"changed": false,
+"ping": "pong"
+}
+Then
+
+cd /etc/ansible/
+ls -lrt # for checking the config
+less ansible.config
+ansible-config init - disabled > ansible.cfg
+from ansible config , generate one sample config
+
+Running on local
+Create a Playbook with host as localhost
+It may ask sudo previliges , so user will become: true
+---
+- name: Ansu's first Playbook
+  hosts: localhost
+
+
+  tasks:
+  - name: Test Connectivity
+    ping:
+  - name: "Print Output"
+    debug:  msg="Wroking Fine"
+Synatx check for a Playbook YAML file
+
+ansible-playbook - syntax-check first_playbook.yaml
+Running
+
+ansible-playbook first_playbook.yaml
+The Output should look like this
+
+ansuman@ansuman:/opt/CodeRepo/DevopsBootCamp/Ansible/playbooks$ ansible-playbook first_playbook.yaml 
+[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
+PLAY [Ansu's first Playbook] *****************************************************************************************************************************************
+TASK [Gathering Facts] ***********************************************************************************************************************************************
+ok: [localhost]
+TASK [Test Connectivity] *********************************************************************************************************************************************
+ok: [localhost]
+TASK [Print Output] **************************************************************************************************************************************************
+ok: [localhost] => {
+    "msg": "Wroking Fine"
+}
+PLAY RECAP ***********************************************************************************************************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+Running for Remote Server
+. Create an ec2 instance in aws via console or cli with key token
+
+. SSH should be allowed there from anywhere
+
+. Download the pem or ppk file
+
+. get the public ip
+
+cd /etc/ansible
+sudo chmod 777 hosts
+less hosts
+Add the target ip in the hosts file
+
+# This is the default ansible 'hosts' file.
+#
+# It should live in /etc/ansible/hosts
+#
+#   - Comments begin with the '#' character
+#   - Blank lines are ignored
+#   - Groups of hosts are delimited by [header] elements
+#   - You can enter hostnames or ip addresses
+#   - A hostname/ip can be a member of multiple groups
+
+# Ex 1: Ungrouped hosts, specify before any group headers:
+43.207.91.249
+confirm via
+
+ansible-inventory --list
+The output should look like
+
+{
+    "_meta": {
+        "hostvars": {}
+    },
+    "all": {
+        "children": [
+            "ungrouped"
+        ]
+    },
+    "ungrouped": {
+        "hosts": [
+            "172.31.12.13"
+        ]
+    }
+}
+connection check
+
+ansible -i hosts all -m ping --private-key=/opt/CodeRepo/Documentation/user5.pem -u ec2-user
+(pings all the host present in the host file )
+Added the public ip in a playbook
+
+---
+- name: Ansu's first Playbook
+  hosts:  43.207.91.249
+
+
+  tasks:
+  - name: Test Connectivity
+    ping:
+  - name: "Print Output"
+    debug:  msg="Wroking Fine"
+Then use
+
+ansible-playbook -i hosts /opt/CodeRepo/DevopsBootCamp/Ansible/playbooks/ec2playbook.yaml --private-key=/opt/CodeRepo/Documentation/user5.pem -u ec2-user
+in above command :
+
+hosts
+
+path to playbook >>
+
+/opt/CodeRepo/DevopsBootCamp/Ansible/playbooks/ec2playbook.yaml
+
+path to pem file>>
+
+— private-key=/opt/CodeRepo/Documentation/user5.pem
+
+u ec2-user name>>
+
+-u ec2-user
+
+Connect with Me on GitHub and LinkedIn
+
+If you found this journey through Ansible as fascinating as I did, let’s connect! You can explore the code and examples discussed in this blog on my GitHub repository. Also, if you’re interested in more devops-related insights and cloud adventures, follow me on LinkedIn.
+
+GitHub | LinkedIn
+
+Let’s dive deeper into the data-driven world together!
