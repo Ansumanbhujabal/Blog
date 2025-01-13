@@ -1,0 +1,198 @@
+Scenario-
+
+30 Minutes time , Machine round with full screen share an llowed access to Google , restriction on -LLM
+
+Question- Perform RAG on your own resume and show what the LLM thinks.
+
+My approach-
+
+Explained the overall approach and what techstack I’ll be using for it to the interviewer in first 2 minutes.
+
+I’ll be adding the full code with requirements and all possible questioning area with answers in comments .
+
+Techstack: Python3, Llama, Groq, Pinecone , LightningAi(platform)
+
+Code :
+
+import os  ## used to read file path 
+import time
+from dotenv import load_dotenv ## to load api keys from env
+from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader,PyPDFLoader ## To load and read pdf files 
+from langchain_text_splitters.character import CharacterTextSplitter, RecursiveCharacterTextSplitter ## To split the documents in chunks 
+from langchain_community.embeddings import HuggingFaceEmbeddings ## To  vectorize the chunks 
+from pinecone import Pinecone,ServerlessSpec ## To connect with Pinecone 
+from langchain_pinecone import PineconeVectorStore ## To store indexes in PineconeVectorStore
+from langchain_groq import ChatGroq ## To load LLM
+from langchain.chains.question_answering import load_qa_chain ## To make the question answering chain
+import warnings
+warnings.filterwarnings('ignore') ## To ignore all warnings coming in the execution
+
+load_dotenv() ## Load all env
+
+
+
+## Load api keys 
+api_key=os.getenv("PINECONE_API_KEY")
+if not api_key:
+    raise ValueError("PINECONE_API_KEY is not found")
+
+## Initialize Pinecone 
+pc=Pinecone(api_key=api_key)
+index_name="practice"  ## Only lowercase allowed in pinecone index
+
+## Initialize LLM
+
+llm= ChatGroq(
+    model="llama-3.1-70b-versatile",
+    temperature=0
+)
+## Initialize Chain with LLM
+chain=load_qa_chain(llm, chain_type="stuff")
+
+## Load docs 
+def read_doc(directory):
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    print(f"The base dir is {base_dir}")
+    full_path = os.path.join(base_dir, directory)
+    print(f"The path dir is {full_path}")    
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(f"Directory '{directory}' does not exist.")
+    file_loader=PyPDFDirectoryLoader(full_path)
+    print(file_loader)
+    documents=file_loader.load()  ## Load the files from the path 
+    return documents
+
+## Chuck documents 
+def chunk_data(docs, chunk_size=800, chunk_overlap=80):## Chunk overlap to keep the document parts consistent in every chunk 
+    text_splitter=RecursiveCharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap) ## Recursively chuk the docs w.r.t the overlap
+    chunked_docs=text_splitter.split_documents(docs)
+    return chunked_docs
+
+# ## Use the 2 functions
+doc=read_doc("upload")
+
+# print(f"The doc is {doc}")
+chunked_docs=chunk_data(doc)
+print(f"The chunked doc is {len(chunked_docs)}")
+
+
+## Embeddings 
+embeddings = HuggingFaceEmbeddings()
+embeddings_dimension=768 ## Default weight by Huggingface to avoid any troubles 
+print(f"The dimension of embeddings is {embeddings_dimension}")
+
+## Check if Index is already in pinecone otherwise create one 
+
+if index_name not in [index_info["name"] for index_info in pc.list_indexes()]:
+    pc.create_index(
+        name=index_name,
+        dimension=embeddings_dimension,
+        metric='cosine',
+        spec=ServerlessSpec(cloud='aws',region='us-east-1')
+    )
+    ## Insert document embeddings into the index 
+    index=PineconeVectorStore.from_documents(
+        documents= chunked_docs,
+        index_name=index_name,
+        embedding=embeddings
+    )
+    pc.describe_index()
+    ## Wait for some seconds to connect 
+    while not pc.describe_index(index_name).staus["ready"]:
+        time.sleep(1)
+
+## Connect to index 
+index=pc.Index(index_name)
+print(f" The index is connected successfully {index}") 
+
+## Load the vectors from index 
+index = PineconeVectorStore.from_existing_index(
+    index_name=index_name,
+    embedding=embeddings
+)
+## Retrieve matching documents
+
+def retrieve_query(query,k=2):    ## K is the number of top matching documents to consider 
+    matching_result=index.similarity_search(query=query,k=k)  ## Based on cosine similarity of document and query
+    return matching_result
+
+## Function to get an answer
+
+def retrieve_answer(query):
+    ## Get the matching indexes
+    doc_search=retrieve_query(query)
+    ## Invoke the chain 
+    answer=chain.run(input_documents=doc_search, question=query)
+    return answer
+
+if __name__=="__main__":
+    ans=retrieve_answer("Tell me what you think about the person  ? ")
+    print(ans)
+
+Sample Output :
+
+Based on the provided context, it appears that the person is:
+
+1. Tech-savvy: They have experience with natural language processing, machine learning, and data pipelines, indicating a strong technical background.
+2. Project-oriented: They have worked on multiple projects, such as BudgetExpert RAG, Paraphrasing-Engine, and Mindflow, which suggests that they are proactive and enjoy taking on new challenges.
+3. Communicative: They write about their project findings on Medium and have a significant readership, which implies that they are able to effectively communicate their ideas and thoughts.
+4. Community-oriented: They are an admin for a technology community, which suggests that they are interested in collaborating with others and contributing to the growth of their community.
+5. Possibly a student or young professional: Their participation in Major League Hacking and their role as an admin for a technology community comprising individuals from various colleges implies that they may be a student or a young professional.
+
+Overall, the person seems to be a motivated, technically skilled, and community-oriented individual with a strong interest in natural language processing and machine learning. However, it's essential to note that this is a limited perspective based on a brief context, and a more comprehensive understanding of the person would require more information.
+requirements.txt : ( I have some not used here too)
+
+fastapi
+uvicorn
+PyMuPDF
+langchain
+llama-index
+pinecone-client
+sqlalchemy
+pydantic
+requests
+boto3
+python-dotenv==1.0.1
+streamlit==1.37.0
+langchain-community==0.2.10
+langchain-text-splitters==0.2.2
+langchain-groq==0.1.9
+unstructured==0.15.0
+unstructured[pdf]==0.15.0
+faiss-gpu==1.7.2
+transformers==4.43.3
+sentence-transformers==3.0.1
+nltk==3.8.1
+Follw-up questions asked ( all answers are in commented part):
+
+Why Chunk overlap and how it helps?
+Why embeddings_dimension is 768?
+What is “K” ? How it affects the time ?
+What is “stuffed chain “ ?
+A “stuff chain” specifically refers to a simple chain type where the input documents are “stuffed” into a single prompt and then passed to the language model for processing. This is useful for tasks where you want to combine multiple documents into a single context before generating a response.
+
+Problems and tricky situations :
+
+1.
+
+from dotenv import load_dotenv ## to load api keys from env
+from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader,PyPDFLoader ## To load and read pdf files 
+from langchain_text_splitters.character import CharacterTextSplitter, RecursiveCharacterTextSplitter ## To split the documents in chunks 
+from langchain_community.embeddings import HuggingFaceEmbeddings ## To  vectorize the chunks 
+from pinecone import Pinecone,ServerlessSpec ## To connect with Pinecone 
+from langchain_pinecone import PineconeVectorStore ## To store indexes in PineconeVectorStore
+from langchain_groq import ChatGroq ## To load LLM
+from langchain.chains.question_answering import load_qa_chain ## To make the question answering chain
+See , Langchain has a lot of global , community , core and specific dependencies and functions , and all can be used to solve the above problem .
+
+But as the time is a constraint here , experimenting and testing will not be in our favor .
+
+So a little familiarity and practice can save a lot of time .
+
+2. Pinecone:
+
+Pinecone can give error for the simplest change in libaray import and their docs gets update frequently , so it can be a problem too.
+
+Sticking to langchain_pinecone for PineconeVectorStore won’t make any VectorStore related issue .
+
+Hope this will help you in anyway.
